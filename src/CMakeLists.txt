@@ -57,4 +57,4 @@ target_include_directories(${PROJECT_NAME} PUBLIC
                            ${PROJECT_SOURCE_DIR}
                            ${CUDNN_LIBRARIES}
                            )  
-target_link_libraries(${PROJECT_NAME} cudnn) 
+target_link_libraries(${PROJECT_NAME} ${CUDNN_LIBRARY})

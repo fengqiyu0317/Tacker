@@ -1,11 +1,9 @@
 // json.h
 #pragma once
-#include <boost/json.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <iostream>
 #include <stdarg.h>
-using namespace boost::json;
 const int JSON_NOT_FOUND = -INT16_MAX;
 void read_json(const std::string &filename);
 
