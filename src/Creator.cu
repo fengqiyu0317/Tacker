@@ -4,23 +4,114 @@
 
 extern Logger logger;
 
+namespace {
 
-int toUnicode(const char* str)
-{
-	return str[0] + (str[1] != '\0' ? toUnicode(str + 1) : 0);
+enum class KernelKind {
+    Cp,
+    CpInt,
+    Cutcp,
+    Fft,
+    FftInt,
+    Lbm,
+    Mrif,
+    MrifInt,
+    Mriq,
+    MriqInt,
+    Sgemm,
+    Stencil,
+    Lava,
+    Hot3d,
+    Nn,
+    Path,
+    Tzgemm,
+    Unknown
+};
+
+KernelKind getKernelKind(const std::string& name) {
+    static const std::unordered_map<std::string, KernelKind> kernelKinds = {
+        {"cp", KernelKind::Cp},
+        {"cp_int", KernelKind::CpInt},
+        {"cutcp", KernelKind::Cutcp},
+        {"fft", KernelKind::Fft},
+        {"fft_int", KernelKind::FftInt},
+        {"lbm", KernelKind::Lbm},
+        {"mrif", KernelKind::Mrif},
+        {"mrif_int", KernelKind::MrifInt},
+        {"mriq", KernelKind::Mriq},
+        {"mriq_int", KernelKind::MriqInt},
+        {"sgemm", KernelKind::Sgemm},
+        {"stencil", KernelKind::Stencil},
+        {"lava", KernelKind::Lava},
+        {"hot3d", KernelKind::Hot3d},
+        {"nn", KernelKind::Nn},
+        {"path", KernelKind::Path},
+        {"tzgemm", KernelKind::Tzgemm}
+    };
+
+    const auto it = kernelKinds.find(name);
+    return it == kernelKinds.end() ? KernelKind::Unknown : it->second;
 }
 
-constexpr inline int myHash(const char* str)
-{
-	return str[0] + (str[1] != '\0' ? myHash(str + 1) : 0);
+enum class MixKernelKind {
+    CpFft,
+    CpSgemm,
+    CutcpFft,
+    CutcpSgemm,
+    FftLbm,
+    FftMriq,
+    FftSgemm,
+    LbmMrif,
+    LbmMriq,
+    LbmSgemm,
+    MrifSgemm,
+    MriqSgemm,
+    FftStencil,
+    MrifStencil,
+    Hot3dLava,
+    Hot3dNn,
+    Hot3dPath,
+    LavaNn,
+    LavaPath,
+    NnPath,
+    Unknown
+};
+
+MixKernelKind getMixKernelKind(const std::string& name) {
+    static const std::unordered_map<std::string, MixKernelKind> kernelKinds = {
+        {"cp_fft", MixKernelKind::CpFft},
+        {"cp_sgemm", MixKernelKind::CpSgemm},
+        {"cutcp_fft", MixKernelKind::CutcpFft},
+        {"cutcp_sgemm", MixKernelKind::CutcpSgemm},
+        {"fft_lbm", MixKernelKind::FftLbm},
+        {"fft_mriq", MixKernelKind::FftMriq},
+        {"fft_sgemm", MixKernelKind::FftSgemm},
+        {"lbm_mrif", MixKernelKind::LbmMrif},
+        {"lbm_mriq", MixKernelKind::LbmMriq},
+        {"lbm_sgemm", MixKernelKind::LbmSgemm},
+        {"mrif_sgemm", MixKernelKind::MrifSgemm},
+        {"mriq_sgemm", MixKernelKind::MriqSgemm},
+        {"fft_stencil", MixKernelKind::FftStencil},
+        {"mrif_stencil", MixKernelKind::MrifStencil},
+        {"hot3d_lava", MixKernelKind::Hot3dLava},
+        {"hot3d_nn", MixKernelKind::Hot3dNn},
+        {"hot3d_path", MixKernelKind::Hot3dPath},
+        {"lava_nn", MixKernelKind::LavaNn},
+        {"lava_path", MixKernelKind::LavaPath},
+        {"nn_path", MixKernelKind::NnPath}
+    };
+
+    const auto it = kernelKinds.find(name);
+    return it == kernelKinds.end() ? MixKernelKind::Unknown : it->second;
 }
+
+} // namespace
 
 unordered_map<std::string, GPTBKernel*> kernelMap;
 
 
 GPTBKernel* createKernel(const std::string &name) {
-    switch (toUnicode(name.c_str())) {
-        case myHash("cp"):
+    switch (getKernelKind(name)) {
+        case KernelKind::Cp:
             if (kernelMap.find("cp") == kernelMap.end()) {
                 // printf("[Creator] create cp kernel\n");
                 kernelMap["cp"] = new GPTBKernel(
@@ -35,7 +126,7 @@ GPTBKernel* createKernel(const std::string &name) {
             } 
             return kernelMap["cp"];
             break;
-        case myHash("cp_int"):
+        case KernelKind::CpInt:
             if (kernelMap.find("cp_int") == kernelMap.end()) {
                 // printf("[Creator] create cp kernel\n");
                 kernelMap["cp_int"] = new GPTBKernel(
@@ -50,7 +141,7 @@ GPTBKernel* createKernel(const std::string &name) {
             } 
             return kernelMap["cp_int"];
             break;
-        case myHash("cutcp"):
+        case KernelKind::Cutcp:
             if (kernelMap.find("cutcp") == kernelMap.end()) {
                 kernelMap["cutcp"] = new GPTBKernel(
                     11, 
@@ -64,7 +155,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["cutcp"];
             break;
-        case myHash("fft"):
+        case KernelKind::Fft:
             if (kernelMap.find("fft") == kernelMap.end()) {
                 kernelMap["fft"] = new GPTBKernel(
                     12, 
@@ -78,7 +169,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["fft"];
             break;
-        case myHash("fft_int"):
+        case KernelKind::FftInt:
             if (kernelMap.find("fft_int") == kernelMap.end()) {
                 kernelMap["fft_int"] = new GPTBKernel(
                     12, 
@@ -92,7 +183,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["fft_int"];
             break;
-        case myHash("lbm"):
+        case KernelKind::Lbm:
             if (kernelMap.find("lbm") == kernelMap.end()) {
                 kernelMap["lbm"] = new GPTBKernel(
                     16, 
@@ -106,7 +197,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["lbm"];
             break;
-        case myHash("mrif"):
+        case KernelKind::Mrif:
             if (kernelMap.find("mrif") == kernelMap.end()) {
                 kernelMap["mrif"] = new GPTBKernel(
                     17, 
@@ -120,7 +211,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["mrif"];
             break;
-        case myHash("mrif_int"):
+        case KernelKind::MrifInt:
             if (kernelMap.find("mrif_int") == kernelMap.end()) {
                 kernelMap["mrif_int"] = new GPTBKernel(
                     17, 
@@ -134,7 +225,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["mrif_int"];
             break;
-        case myHash("mriq"):
+        case KernelKind::Mriq:
             if (kernelMap.find("mriq") == kernelMap.end()) {
                 kernelMap["mriq"] = new GPTBKernel(
                     18, 
@@ -148,7 +239,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["mriq"];
             break;
-        case myHash("mriq_int"):
+        case KernelKind::MriqInt:
             if (kernelMap.find("mriq_int") == kernelMap.end()) {
                 kernelMap["mriq_int"] = new GPTBKernel(
                     18, 
@@ -162,7 +253,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["mriq_int"];
             break;
-        case myHash("sgemm"):
+        case KernelKind::Sgemm:
             if (kernelMap.find("sgemm") == kernelMap.end()) {
                 kernelMap["sgemm"] = new GPTBKernel(
                     19, 
@@ -176,7 +267,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["sgemm"];
             break;
-        case myHash("stencil"):
+        case KernelKind::Stencil:
             if (kernelMap.find("stencil") == kernelMap.end()) {
                 kernelMap["stencil"] = new GPTBKernel(
                     20, 
@@ -190,7 +281,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["stencil"];
             break;
-        case myHash("lava"):
+        case KernelKind::Lava:
             if (kernelMap.find("lava") == kernelMap.end()) {
                 kernelMap["lava"] = new GPTBKernel(
                     20, 
@@ -204,7 +295,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["lava"];
             break;
-        case myHash("hot3d"):
+        case KernelKind::Hot3d:
             if (kernelMap.find("hot3d") == kernelMap.end()) {
                 kernelMap["hot3d"] = new GPTBKernel(
                     20, 
@@ -218,7 +309,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["hot3d"];
             break;
-        case myHash("nn"):
+        case KernelKind::Nn:
             if (kernelMap.find("nn") == kernelMap.end()) {
                 kernelMap["nn"] = new GPTBKernel(
                     20, 
@@ -232,7 +323,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["nn"];
             break;
-        case myHash("path"):
+        case KernelKind::Path:
             if (kernelMap.find("path") == kernelMap.end()) {
                 kernelMap["path"] = new GPTBKernel(
                     20, 
@@ -246,7 +337,7 @@ GPTBKernel* createKernel(const std::string &name) {
             }
             return kernelMap["path"];
             break;
-        case myHash("tzgemm"):
+        case KernelKind::Tzgemm:
             if (kernelMap.find("tzgemm") == kernelMap.end()) {
                 kernelMap["tzgemm"] = new GPTBKernel(
                     20, 
@@ -261,9 +352,9 @@ GPTBKernel* createKernel(const std::string &name) {
             printf("[Creator] create tzgemm kernel, max_blks: %d\n", getTZGEMMGridDim(128000, 512, 4096)[3]);
             return kernelMap["tzgemm"];
             break;
-        default:
+        case KernelKind::Unknown:
             logger.ERROR("Creator: Kernel not found: " + name);
-        // case myHash("cutcp"): 
+        // Legacy configuration for cutcp:
         //     return new GPTBKernel(
         //         11, 
         //         "cutcp",
@@ -273,7 +364,7 @@ GPTBKernel* createKernel(const std::string &name) {
         //         dim3(128, 1, 1), 
         //         0, 
         //         1352);
-        // case myHash("fft"):
+        // Legacy configuration for fft:
         //     return new GPTBKernel(
         //         12, 
         //         "fft",
@@ -283,7 +374,7 @@ GPTBKernel* createKernel(const std::string &name) {
         //         dim3(128, 1, 1), 
         //         0, 
         //         10240);
-        // case myHash("lbm"):
+        // Legacy configuration for lbm:
         //     return new GPTBKernel(
         //         16, 
         //         "lbm",
@@ -293,7 +384,7 @@ GPTBKernel* createKernel(const std::string &name) {
         //         dim3(128, 1, 1), 
         //         0, 
         //         16384);
-        // case myHash("mrif"):
+        // Legacy configuration for mrif:
         //     return new GPTBKernel(
         //         17, 
         //         "mrif",
@@ -303,7 +394,7 @@ GPTBKernel* createKernel(const std::string &name) {
         //         dim3(256, 1, 1), 
         //         0, 
         //         1024);
-        // case myHash("mriq"):
+        // Legacy configuration for mriq:
         //     return new GPTBKernel(
         //         18, 
         //         "mriq",
@@ -313,7 +404,7 @@ GPTBKernel* createKernel(const std::string &name) {
         //         dim3(256, 1, 1), 
         //         0, 
         //         819);
-        // case myHash("sgemm"):
+        // Legacy configuration for sgemm:
         //     return new GPTBKernel(
         //         19, 
         //         "sgemm",
@@ -323,7 +414,7 @@ GPTBKernel* createKernel(const std::string &name) {
         //         dim3(128, 1, 1), 
         //         0, 
         //         774);
-        // case myHash("stencil"):
+        // Legacy configuration for stencil:
         //     return new GPTBKernel(
         //         20, 
         //         "stencil",
@@ -334,13 +425,14 @@ GPTBKernel* createKernel(const std::string &name) {
         //         0, 
         //         1024);
     }
+    return nullptr;
 }
 
 unordered_map<std::string, MixKernel* > mixKernelMap;
 
 MixKernel* createMixKernel(const std::string &name) {
-    switch (myHash(name.c_str())) {
-        case myHash("cp_fft"):
+    switch (getMixKernelKind(name)) {
+        case MixKernelKind::CpFft:
             // printf("[Creator] hit cp_fft kernel\n");
             if (mixKernelMap.find("cp_fft") == mixKernelMap.end()) {
                 mixKernelMap["cp_fft"] = new MixKernel(
@@ -356,7 +448,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("fft")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["cp_fft"];
-        case myHash("cp_sgemm"):
+        case MixKernelKind::CpSgemm:
             if (mixKernelMap.find("cp_sgemm") == mixKernelMap.end()) {
                 mixKernelMap["cp_sgemm"] = new MixKernel(
                     1, 
@@ -371,7 +463,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("sgemm")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["cp_sgemm"];
-        case myHash("cutcp_fft"):
+        case MixKernelKind::CutcpFft:
             if (mixKernelMap.find("cutcp_fft") == mixKernelMap.end()) {
                 mixKernelMap["cutcp_fft"] = new MixKernel(
                     2, 
@@ -386,7 +478,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("fft")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["cutcp_fft"];
-        case myHash("cutcp_sgemm"):
+        case MixKernelKind::CutcpSgemm:
             if (mixKernelMap.find("cutcp_sgemm") == mixKernelMap.end()) {
                 mixKernelMap["cutcp_sgemm"] = new MixKernel(
                     3, 
@@ -401,7 +493,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("sgemm")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["cutcp_sgemm"];
-        case myHash("fft_lbm"):
+        case MixKernelKind::FftLbm:
             if (mixKernelMap.find("fft_lbm") == mixKernelMap.end()) {
                 mixKernelMap["fft_lbm"] = new MixKernel(
                     4, 
@@ -416,7 +508,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("lbm")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["fft_lbm"];
-        case myHash("fft_mriq"):
+        case MixKernelKind::FftMriq:
             if (mixKernelMap.find("fft_mriq") == mixKernelMap.end()) {
                 mixKernelMap["fft_mriq"] = new MixKernel(
                     5, 
@@ -431,7 +523,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("mriq")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["fft_mriq"];
-        case myHash("fft_sgemm"):
+        case MixKernelKind::FftSgemm:
             if (mixKernelMap.find("fft_sgemm") == mixKernelMap.end()) {
                 mixKernelMap["fft_sgemm"] = new MixKernel(
                     6, 
@@ -446,7 +538,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("sgemm")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["fft_sgemm"];
-        case myHash("lbm_mrif"):
+        case MixKernelKind::LbmMrif:
             if (mixKernelMap.find("lbm_mrif") == mixKernelMap.end()) {
                 mixKernelMap["lbm_mrif"] = new MixKernel(
                     7, 
@@ -461,7 +553,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("mrif")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["lbm_mrif"];
-        case myHash("lbm_mriq"):
+        case MixKernelKind::LbmMriq:
             if (mixKernelMap.find("lbm_mriq") == mixKernelMap.end()) {
                 mixKernelMap["lbm_mriq"] = new MixKernel(
                     8, 
@@ -476,7 +568,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("mriq")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["lbm_mriq"];
-        case myHash("lbm_sgemm"):
+        case MixKernelKind::LbmSgemm:
             if (mixKernelMap.find("lbm_sgemm") == mixKernelMap.end()) {
                 mixKernelMap["lbm_sgemm"] = new MixKernel(
                     9, 
@@ -491,7 +583,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("sgemm")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["lbm_sgemm"];
-        case myHash("mrif_sgemm"):
+        case MixKernelKind::MrifSgemm:
             if (mixKernelMap.find("mrif_sgemm") == mixKernelMap.end()) {
                 mixKernelMap["mrif_sgemm"] = new MixKernel(
                     10, 
@@ -506,7 +598,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("sgemm")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["mrif_sgemm"];
-        case myHash("mriq_sgemm"):
+        case MixKernelKind::MriqSgemm:
             if (mixKernelMap.find("mriq_sgemm") == mixKernelMap.end()) {
                 mixKernelMap["mriq_sgemm"] = new MixKernel(
                     11, 
@@ -521,7 +613,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("sgemm")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["mriq_sgemm"];
-        case myHash("fft_stencil"):
+        case MixKernelKind::FftStencil:
             if (mixKernelMap.find("fft_stencil") == mixKernelMap.end()) {
                 mixKernelMap["fft_stencil"] = new MixKernel(
                     12, 
@@ -536,7 +628,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("stencil")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["fft_stencil"];
-        case myHash("mrif_stencil"):
+        case MixKernelKind::MrifStencil:
             if (mixKernelMap.find("mrif_stencil") == mixKernelMap.end()) {
                 mixKernelMap["mrif_stencil"] = new MixKernel(
                     13, 
@@ -551,7 +643,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("stencil")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["mrif_stencil"];
-        case myHash("hot3d_lava"):
+        case MixKernelKind::Hot3dLava:
             if (mixKernelMap.find("hot3d_lava") == mixKernelMap.end()) {
                 mixKernelMap["hot3d_lava"] = new MixKernel(
                     14, 
@@ -566,7 +658,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("lava")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["hot3d_lava"];
-        case myHash("hot3d_nn"):
+        case MixKernelKind::Hot3dNn:
             if (mixKernelMap.find("hot3d_nn") == mixKernelMap.end()) {
                 mixKernelMap["hot3d_nn"] = new MixKernel(
                     15, 
@@ -581,7 +673,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("nn")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["hot3d_nn"];
-        case myHash("hot3d_path"):
+        case MixKernelKind::Hot3dPath:
             if (mixKernelMap.find("hot3d_path") == mixKernelMap.end()) {
                 mixKernelMap["hot3d_path"] = new MixKernel(
                     16, 
@@ -596,7 +688,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("path")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["hot3d_path"];
-        case myHash("lava_nn"):
+        case MixKernelKind::LavaNn:
             if (mixKernelMap.find("lava_nn") == mixKernelMap.end()) {
                 mixKernelMap["lava_nn"] = new MixKernel(
                     17, 
@@ -611,7 +703,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("nn")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["lava_nn"];
-        case myHash("lava_path"):
+        case MixKernelKind::LavaPath:
             if (mixKernelMap.find("lava_path") == mixKernelMap.end()) {
                 mixKernelMap["lava_path"] = new MixKernel(
                     18, 
@@ -626,7 +718,7 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("path")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["lava_path"];
-        case myHash("nn_path"):
+        case MixKernelKind::NnPath:
             if (mixKernelMap.find("nn_path") == mixKernelMap.end()) {
                 mixKernelMap["nn_path"] = new MixKernel(
                     19, 
@@ -641,9 +733,9 @@ MixKernel* createMixKernel(const std::string &name) {
                     createKernel("path")->gptbParams.ptb_end_block_pos);
             }
             return mixKernelMap["nn_path"];
-        default:
+        case MixKernelKind::Unknown:
             logger.ERROR("Creator: Kernel not found: " + name);
-        // case myHash("cp_fft"):
+        // Legacy configuration for cp_fft:
         //     return new MixKernel(
         //         0, 
         //         "cp_fft", 
@@ -655,7 +747,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("cp")->gptbParams.ptb_end_block_pos, 
         //         createKernel("fft")->gptbParams.ptb_start_block_pos,
         //         createKernel("fft")->gptbParams.ptb_end_block_pos);
-        // case myHash("cp_sgemm"):
+        // Legacy configuration for cp_sgemm:
         //     return new MixKernel(
         //         1, 
         //         "cp_sgemm", 
@@ -667,7 +759,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("cp")->gptbParams.ptb_end_block_pos, 
         //         createKernel("sgemm")->gptbParams.ptb_start_block_pos,
         //         createKernel("sgemm")->gptbParams.ptb_end_block_pos);
-        // case myHash("cutcp_fft"):
+        // Legacy configuration for cutcp_fft:
         //     return new MixKernel(
         //         2, 
         //         "cutcp_fft", 
@@ -679,7 +771,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("cutcp")->gptbParams.ptb_end_block_pos, 
         //         createKernel("fft")->gptbParams.ptb_start_block_pos,
         //         createKernel("fft")->gptbParams.ptb_end_block_pos);
-        // case myHash("cutcp_sgemm"):
+        // Legacy configuration for cutcp_sgemm:
         //     return new MixKernel(
         //         3, 
         //         "cutcp_sgemm", 
@@ -691,7 +783,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("cutcp")->gptbParams.ptb_end_block_pos, 
         //         createKernel("sgemm")->gptbParams.ptb_start_block_pos,
         //         createKernel("sgemm")->gptbParams.ptb_end_block_pos);
-        // case myHash("fft_lbm"):
+        // Legacy configuration for fft_lbm:
         //     return new MixKernel(
         //         4, 
         //         "fft_lbm", 
@@ -703,7 +795,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("fft")->gptbParams.ptb_end_block_pos, 
         //         createKernel("lbm")->gptbParams.ptb_start_block_pos,
         //         createKernel("lbm")->gptbParams.ptb_end_block_pos);
-        // case myHash("fft_mriq"):
+        // Legacy configuration for fft_mriq:
         //     return new MixKernel(
         //         5, 
         //         "fft_mriq", 
@@ -715,7 +807,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("fft")->gptbParams.ptb_end_block_pos, 
         //         createKernel("mriq")->gptbParams.ptb_start_block_pos,
         //         createKernel("mriq")->gptbParams.ptb_end_block_pos);
-        // case myHash("fft_sgemm"):
+        // Legacy configuration for fft_sgemm:
         //     return new MixKernel(
         //         6, 
         //         "fft_sgemm", 
@@ -727,7 +819,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("fft")->gptbParams.ptb_end_block_pos, 
         //         createKernel("sgemm")->gptbParams.ptb_start_block_pos,
         //         createKernel("sgemm")->gptbParams.ptb_end_block_pos);
-        // case myHash("lbm_mrif"):
+        // Legacy configuration for lbm_mrif:
         //     return new MixKernel(
         //         7, 
         //         "lbm_mrif", 
@@ -739,7 +831,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("lbm")->gptbParams.ptb_end_block_pos, 
         //         createKernel("mrif")->gptbParams.ptb_start_block_pos,
         //         createKernel("mrif")->gptbParams.ptb_end_block_pos);
-        // case myHash("lbm_mriq"):
+        // Legacy configuration for lbm_mriq:
         //     return new MixKernel(
         //         8, 
         //         "lbm_mriq", 
@@ -751,7 +843,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("lbm")->gptbParams.ptb_end_block_pos, 
         //         createKernel("mriq")->gptbParams.ptb_start_block_pos,
         //         createKernel("mriq")->gptbParams.ptb_end_block_pos);
-        // case myHash("lbm_sgemm"):
+        // Legacy configuration for lbm_sgemm:
         //     return new MixKernel(
         //         9, 
         //         "lbm_sgemm", 
@@ -763,7 +855,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("lbm")->gptbParams.ptb_end_block_pos, 
         //         createKernel("sgemm")->gptbParams.ptb_start_block_pos,
         //         createKernel("sgemm")->gptbParams.ptb_end_block_pos);
-        // case myHash("mrif_sgemm"):
+        // Legacy configuration for mrif_sgemm:
         //     return new MixKernel(
         //         10, 
         //         "mrif_sgemm", 
@@ -775,7 +867,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("mrif")->gptbParams.ptb_end_block_pos, 
         //         createKernel("sgemm")->gptbParams.ptb_start_block_pos,
         //         createKernel("sgemm")->gptbParams.ptb_end_block_pos);
-        // case myHash("mriq_sgemm"):
+        // Legacy configuration for mriq_sgemm:
         //     return new MixKernel(
         //         11, 
         //         "mriq_sgemm", 
@@ -787,7 +879,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("mriq")->gptbParams.ptb_end_block_pos, 
         //         createKernel("sgemm")->gptbParams.ptb_start_block_pos,
         //         createKernel("sgemm")->gptbParams.ptb_end_block_pos);
-        // case myHash("fft_stencil"):
+        // Legacy configuration for fft_stencil:
         //     return new MixKernel(
         //         12, 
         //         "fft_stencil", 
@@ -799,7 +891,7 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("fft")->gptbParams.ptb_end_block_pos, 
         //         createKernel("stencil")->gptbParams.ptb_start_block_pos,
         //         createKernel("stencil")->gptbParams.ptb_end_block_pos);
-        // case myHash("mrif_stencil"):
+        // Legacy configuration for mrif_stencil:
         //     return new MixKernel(
         //         13, 
         //         "mrif_stencil", 
@@ -813,4 +905,5 @@ MixKernel* createMixKernel(const std::string &name) {
         //         createKernel("stencil")->gptbParams.ptb_end_block_pos);
 
     }
+    return nullptr;
 }

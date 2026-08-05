@@ -22,11 +22,6 @@
 
 using namespace std;
 
-constexpr uint64_t FNV_prime = 16777619u;
-constexpr uint64_t FNV_offset_basis = 2166136261u;
-
-constexpr inline int myHash(const char* text);
-
 GPTBKernel* createKernel(const std::string &name);
 
 MixKernel* createMixKernel(const std::string &name);
