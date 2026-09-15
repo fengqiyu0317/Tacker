@@ -40,6 +40,7 @@
 *_mix
 *_out*
 build/
+/build-runtime-final/
 *.so
 *.zip
 *.log
@@ -55,3 +56,5 @@ log/
 *.onnx
 *.tar
 *.run
+__pycache__/
+*.py[cod]

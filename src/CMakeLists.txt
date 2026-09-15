@@ -1,60 +1,131 @@
-# CMakeLists.txt
-cmake_minimum_required (VERSION 3.8)
-project (tacker VERSION 0.4.0 LANGUAGES C CXX CUDA)
-add_compile_options(-std=c++11)
+cmake_minimum_required(VERSION 3.18)
+project(tacker VERSION 0.4.0 LANGUAGES C CXX)
 
-find_package(CUDA REQUIRED)
-message(STATUS "cuda version: " ${CUDA_VERSION_STRING})
-message(STATUS "CUDA_INCLUDE_DIRS: " ${CUDA_INCLUDE_DIRS})
-message(STATUS "CUDA_LIBRARIES: " ${CUDA_LIBRARIES})
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
-SET(CMAKE_CXX_COMPILER "/usr/local/cuda/bin/nvcc")
+option(TACKER_BUILD_LEGACY "Build the original CUDA benchmark executable" ON)
+option(TACKER_ENABLE_CUDA_BACKEND "Build the CUDA runtime backend when CUDA is available" ON)
+option(TACKER_BUILD_TESTS "Build CPU-only runtime tests" ON)
 
-set(CUDA_NVCC_FLAGS "-arch=sm_86 -Xptxas -dlcm=ca -w -cudart shared --expt-relaxed-constexpr ${CUDA_NVCC_FLAGS}") # must have -arch=sm_75, -cudart, not -lcudart
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES 86)
-endif()
+set(TACKER_RUNTIME_SOURCES
+    runtime/Kernel.cc
+    runtime/TaskGraph.cc
+    runtime/Registry.cc
+    runtime/Scheduler.cc)
 
-if (NOT CMAKE_BUILD_TYPE)
-set(CMAKE_BUILD_TYPE "RELEASE" CACHE STRING 
-    "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
-endif()
-
-if(${CMAKE_BUILD_TYPE} STREQUAL "RELEASE")
-set(CMAKE_CXX_FLAGS "-w -lcuda -lcublas -lcurand ${CMAKE_CXX_FLAGS}") # must have -lcuda, linker is /usr/bin/c++, not nvcc. must no -lcudart
-message(STATUS "${PROJECT_NAME} compile cuda code in [RELEASE] mode")
+include(CheckLanguage)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    set(TACKER_CUDA_AVAILABLE ON)
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES 86)
+    endif()
+    find_package(CUDAToolkit REQUIRED)
 else()
-set(CMAKE_CXX_FLAGS "-w -g -lcuda -lcublas -lcurand ${CMAKE_CXX_FLAGS}")
-message(STATUS "${PROJECT_NAME} compile cuda code in [DEBUG] mode")
+    set(TACKER_CUDA_AVAILABLE OFF)
 endif()
 
-set(LOG_FILE_PATH ${PROJECT_SOURCE_DIR}/log/${PROJECT_VERSION}.log)
+if(TACKER_CUDA_AVAILABLE AND TACKER_ENABLE_CUDA_BACKEND)
+    list(APPEND TACKER_RUNTIME_SOURCES runtime/CudaExecutionBackend.cc)
+endif()
 
-# cudnn
-find_path(CUDNN_INCLUDE_DIR cudnn.h
-    HINTS ${CUDA_TOOLKIT_ROOT_DIR}
-    PATH_SUFFIXES cuda/include include)
-include_directories(${CUDNN_INCLUDE_DIR} ${CUDA_INCLUDE_DIRS})
-find_library(CUDNN_LIBRARY cudnn
-    HINTS ${CUDA_TOOLKIT_ROOT_DIR}
-    PATH_SUFFIXES lib lib64 cuda/lib cuda/lib64 lib/x64)
+add_library(tacker_runtime SHARED ${TACKER_RUNTIME_SOURCES})
+add_library(Tacker::runtime ALIAS tacker_runtime)
+set_target_properties(tacker_runtime PROPERTIES
+    EXPORT_NAME runtime
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR})
+target_include_directories(tacker_runtime
+    PUBLIC
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:include>)
+target_compile_features(tacker_runtime PUBLIC cxx_std_11)
 
-set(SRC_LIST main.cu Logger.cc TaskManager.cu Task.cu ModuleCenter.cu readatom.c Recorder.cc json.cc Creator.cu 
-  ./dnn/inception3/inception3.cu ./dnn/resnet50/resnet50.cu ./dnn/bert/bert.cu ./dnn/vgg11/vgg11.cu ./dnn/vgg16/vgg16.cu ./dnn/vit/vit.cu)
+if(TACKER_CUDA_AVAILABLE AND TACKER_ENABLE_CUDA_BACKEND)
+    target_link_libraries(tacker_runtime PRIVATE CUDA::cudart CUDA::cuda_driver)
+    target_compile_definitions(tacker_runtime PUBLIC TACKER_RUNTIME_HAS_CUDA=1)
+else()
+    message(STATUS "CUDA runtime backend disabled; building CPU-only libtacker_runtime")
+endif()
 
-string(TIMESTAMP COMPILE_TIME %Y%m%d-%H%M%S)
-configure_file(TackerConfig.h.in TackerConfig.h)
+if(TACKER_BUILD_TESTS)
+    enable_testing()
+    add_executable(tacker_runtime_tests ../tests/runtime/runtime_tests.cc)
+    target_link_libraries(tacker_runtime_tests PRIVATE tacker_runtime)
+    add_test(NAME tacker_runtime_tests COMMAND tacker_runtime_tests)
+endif()
 
-CUDA_ADD_EXECUTABLE(${PROJECT_NAME} ${SRC_LIST})
+# Make the runtime consumable without pulling in the original benchmark.
+# Public headers intentionally retain their `runtime/...` include prefix.
+install(TARGETS tacker_runtime
+    EXPORT TackerRuntimeTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(DIRECTORY runtime/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/runtime
+    FILES_MATCHING PATTERN "*.h")
 
+configure_package_config_file(
+    cmake/TackerRuntimeConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/TackerRuntimeConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/TackerRuntime)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/TackerRuntimeConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/TackerRuntimeConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/TackerRuntimeConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/TackerRuntime)
+install(EXPORT TackerRuntimeTargets
+    FILE TackerRuntimeTargets.cmake
+    NAMESPACE Tacker::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/TackerRuntime)
 
-target_link_options(${PROJECT_NAME} PRIVATE -Xptxas -wl)
+# Keep the original benchmark available when a CUDA toolkit is installed. The
+# generic runtime above deliberately does not depend on this legacy target.
+if(TACKER_BUILD_LEGACY AND TACKER_CUDA_AVAILABLE)
+    set(LOG_FILE_PATH ${PROJECT_SOURCE_DIR}/log/${PROJECT_VERSION}.log)
+    string(TIMESTAMP COMPILE_TIME %Y%m%d-%H%M%S)
+    configure_file(TackerConfig.h.in TackerConfig.h)
 
-target_include_directories(${PROJECT_NAME} PUBLIC
-                           ${PROJECT_BINARY_DIR}
-                           ${CUDA_INCLUDE_DIRS}
-                           ${PROJECT_SOURCE_DIR}
-                           ${CUDNN_LIBRARIES}
-                           )  
-target_link_libraries(${PROJECT_NAME} ${CUDNN_LIBRARY})
+    find_path(CUDNN_INCLUDE_DIR cudnn.h
+        HINTS ${CUDAToolkit_ROOT}
+        PATH_SUFFIXES cuda/include include)
+    find_library(CUDNN_LIBRARY cudnn
+        HINTS ${CUDAToolkit_ROOT}
+        PATH_SUFFIXES lib lib64 cuda/lib cuda/lib64 lib/x64)
+
+    set(TACKER_LEGACY_SOURCES
+        main.cu Logger.cc TaskManager.cu Task.cu ModuleCenter.cu readatom.c
+        Recorder.cc json.cc Creator.cu
+        dnn/inception3/inception3.cu dnn/resnet50/resnet50.cu
+        dnn/bert/bert.cu dnn/vgg11/vgg11.cu dnn/vgg16/vgg16.cu dnn/vit/vit.cu)
+
+    add_executable(tacker ${TACKER_LEGACY_SOURCES})
+    set_target_properties(tacker PROPERTIES
+        CUDA_ARCHITECTURES 86
+        CUDA_STANDARD 11
+        CUDA_STANDARD_REQUIRED ON)
+    target_compile_options(tacker PRIVATE
+        "$<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-Xptxas=-dlcm=ca;-w>")
+    target_include_directories(tacker PUBLIC
+        ${PROJECT_BINARY_DIR}
+        ${PROJECT_SOURCE_DIR}
+        ${CUDNN_INCLUDE_DIR})
+    target_link_libraries(tacker
+        CUDA::cudart
+        CUDA::cuda_driver
+        CUDA::cublas
+        CUDA::curand
+        ${CUDNN_LIBRARY})
+elseif(TACKER_BUILD_LEGACY)
+    message(STATUS "CUDA toolkit not found; original tacker executable will not be built")
+endif()
